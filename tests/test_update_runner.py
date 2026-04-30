@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
 
 from simapwatch.services import SyncStats
 from simapwatch.update_runner import run_update
+from simapwatch.geocoding import GeocodingStats
 
 
 class UpdateRunnerTests(unittest.TestCase):
@@ -29,14 +30,21 @@ class UpdateRunnerTests(unittest.TestCase):
             mock.patch("simapwatch.update_runner.SqliteAwardRepository", return_value=fake_repository),
             mock.patch("simapwatch.update_runner.HttpHtmlFetcher"),
             mock.patch("simapwatch.update_runner.SyncService", return_value=fake_service),
+            mock.patch("simapwatch.update_runner.GeoAdminGeocoder"),
+            mock.patch(
+                "simapwatch.update_runner.geocode_missing_awards",
+                return_value=GeocodingStats(updated_rows=2, queried_addresses=2, skipped_rows=4),
+            ) as geocode_missing,
             mock.patch("simapwatch.update_runner.export_analysis_csv", return_value=12) as export_csv,
         ):
             result = run_update(db_path="simapwatch.db", csv_path="analysis.csv")
 
         fake_repository.init_schema.assert_called_once()
         fake_service.run_once.assert_called_once()
+        geocode_missing.assert_called_once()
         export_csv.assert_called_once_with("simapwatch.db", "analysis.csv")
         self.assertEqual(result.sync_stats.status, "success")
+        self.assertIsNotNone(result.geocoding_stats)
         self.assertEqual(result.csv_row_count, 12)
 
     def test_run_update_skips_csv_when_requested(self) -> None:
@@ -54,11 +62,18 @@ class UpdateRunnerTests(unittest.TestCase):
             mock.patch("simapwatch.update_runner.SqliteAwardRepository", return_value=fake_repository),
             mock.patch("simapwatch.update_runner.HttpHtmlFetcher"),
             mock.patch("simapwatch.update_runner.SyncService", return_value=fake_service),
+            mock.patch("simapwatch.update_runner.GeoAdminGeocoder"),
+            mock.patch(
+                "simapwatch.update_runner.geocode_missing_awards",
+                return_value=GeocodingStats(updated_rows=0, queried_addresses=0, skipped_rows=2),
+            ) as geocode_missing,
             mock.patch("simapwatch.update_runner.export_analysis_csv") as export_csv,
         ):
             result = run_update(skip_csv=True)
 
+        geocode_missing.assert_called_once()
         export_csv.assert_not_called()
+        self.assertIsNotNone(result.geocoding_stats)
         self.assertIsNone(result.csv_row_count)
 
     def test_run_update_does_not_export_csv_when_sync_failed(self) -> None:
@@ -76,10 +91,13 @@ class UpdateRunnerTests(unittest.TestCase):
             mock.patch("simapwatch.update_runner.SqliteAwardRepository", return_value=fake_repository),
             mock.patch("simapwatch.update_runner.HttpHtmlFetcher"),
             mock.patch("simapwatch.update_runner.SyncService", return_value=fake_service),
+            mock.patch("simapwatch.update_runner.GeoAdminGeocoder"),
+            mock.patch("simapwatch.update_runner.geocode_missing_awards") as geocode_missing,
             mock.patch("simapwatch.update_runner.export_analysis_csv") as export_csv,
         ):
             result = run_update()
 
+        geocode_missing.assert_not_called()
         export_csv.assert_not_called()
         self.assertIsNone(result.csv_row_count)
         self.assertEqual(result.sync_stats.status, "failed")

@@ -80,7 +80,15 @@ class SqliteAwardRepository:
                 overview_publication_date TEXT NOT NULL,
                 winner_name TEXT,
                 winner_address TEXT,
+                winner_lat REAL,
+                winner_lon REAL,
+                winner_geocode_query TEXT,
+                winner_geocode_status TEXT,
                 procurement_office_address TEXT,
+                procurement_office_lat REAL,
+                procurement_office_lon REAL,
+                procurement_office_geocode_query TEXT,
+                procurement_office_geocode_status TEXT,
                 award_amount_chf REAL,
                 vat_percent REAL,
                 offers_count INTEGER,
@@ -129,20 +137,81 @@ class SqliteAwardRepository:
             conn.executescript(self._awards_table_sql())
             return
 
+        self._recover_awards_table_if_needed(conn)
+
         columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(awards)").fetchall()
         }
-        required_columns = {"award_row_id", "winner_position", "winner_address", "procurement_office_address"}
+        required_columns = {
+            "award_row_id",
+            "winner_position",
+            "winner_address",
+            "procurement_office_address",
+            "winner_lat",
+            "winner_lon",
+            "winner_geocode_query",
+            "winner_geocode_status",
+            "procurement_office_lat",
+            "procurement_office_lon",
+            "procurement_office_geocode_query",
+            "procurement_office_geocode_status",
+        }
         if required_columns.issubset(columns):
             return
 
         legacy_columns = columns
         conn.execute("ALTER TABLE awards RENAME TO awards_legacy")
         conn.executescript(self._awards_table_sql())
+        self._copy_awards_from_table(conn, "awards_legacy", legacy_columns)
+        conn.execute("DROP TABLE awards_legacy")
 
-        winner_address_expr = "winner_address" if "winner_address" in legacy_columns else "NULL"
+    def _recover_awards_table_if_needed(self, conn: sqlite3.Connection) -> None:
+        legacy_exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'awards_legacy'"
+        ).fetchone()
+        if legacy_exists is None:
+            return
+
+        awards_count = int(conn.execute("SELECT COUNT(*) FROM awards").fetchone()[0])
+        legacy_count = int(conn.execute("SELECT COUNT(*) FROM awards_legacy").fetchone()[0])
+        if awards_count == 0 and legacy_count > 0:
+            legacy_columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(awards_legacy)").fetchall()
+            }
+            self._copy_awards_from_table(conn, "awards_legacy", legacy_columns)
+            conn.execute("DROP TABLE awards_legacy")
+            return
+
+        if awards_count >= legacy_count:
+            conn.execute("DROP TABLE awards_legacy")
+
+    def _copy_awards_from_table(
+        self,
+        conn: sqlite3.Connection,
+        source_table: str,
+        source_columns: set[str],
+    ) -> None:
+        award_row_id_expr = "award_row_id" if "award_row_id" in source_columns else "publication_number || '::1'"
+        winner_position_expr = "winner_position" if "winner_position" in source_columns else "1"
+        winner_address_expr = "winner_address" if "winner_address" in source_columns else "NULL"
+        winner_lat_expr = "winner_lat" if "winner_lat" in source_columns else "NULL"
+        winner_lon_expr = "winner_lon" if "winner_lon" in source_columns else "NULL"
+        winner_geocode_query_expr = "winner_geocode_query" if "winner_geocode_query" in source_columns else "NULL"
+        winner_geocode_status_expr = "winner_geocode_status" if "winner_geocode_status" in source_columns else "NULL"
         procurement_office_address_expr = (
-            "procurement_office_address" if "procurement_office_address" in legacy_columns else "NULL"
+            "procurement_office_address" if "procurement_office_address" in source_columns else "NULL"
+        )
+        procurement_office_lat_expr = (
+            "procurement_office_lat" if "procurement_office_lat" in source_columns else "NULL"
+        )
+        procurement_office_lon_expr = (
+            "procurement_office_lon" if "procurement_office_lon" in source_columns else "NULL"
+        )
+        procurement_office_geocode_query_expr = (
+            "procurement_office_geocode_query" if "procurement_office_geocode_query" in source_columns else "NULL"
+        )
+        procurement_office_geocode_status_expr = (
+            "procurement_office_geocode_status" if "procurement_office_geocode_status" in source_columns else "NULL"
         )
 
         conn.execute(
@@ -151,14 +220,17 @@ class SqliteAwardRepository:
                 award_row_id, publication_number, winner_position,
                 related_notice_number, publication_date,
                 project_id, project_url, title, procurement_office, publication_type,
-                overview_publication_date, winner_name, winner_address, procurement_office_address,
+                overview_publication_date, winner_name, winner_address, winner_lat, winner_lon,
+                winner_geocode_query, winner_geocode_status,
+                procurement_office_address, procurement_office_lat, procurement_office_lon,
+                procurement_office_geocode_query, procurement_office_geocode_status,
                 award_amount_chf, vat_percent, offers_count, procurement_type,
                 cpv_codes, source_url, created_at, updated_at
             )
             SELECT
-                publication_number || '::1',
+                {award_row_id_expr},
                 publication_number,
-                1,
+                {winner_position_expr},
                 related_notice_number,
                 publication_date,
                 project_id,
@@ -169,7 +241,15 @@ class SqliteAwardRepository:
                 overview_publication_date,
                 winner_name,
                 {winner_address_expr},
+                {winner_lat_expr},
+                {winner_lon_expr},
+                {winner_geocode_query_expr},
+                {winner_geocode_status_expr},
                 {procurement_office_address_expr},
+                {procurement_office_lat_expr},
+                {procurement_office_lon_expr},
+                {procurement_office_geocode_query_expr},
+                {procurement_office_geocode_status_expr},
                 award_amount_chf,
                 vat_percent,
                 offers_count,
@@ -178,10 +258,9 @@ class SqliteAwardRepository:
                 source_url,
                 created_at,
                 updated_at
-            FROM awards_legacy
+            FROM {source_table}
             """
         )
-        conn.execute("DROP TABLE awards_legacy")
 
     def clear_all_data(self) -> None:
         with self._connection() as conn:
@@ -262,11 +341,14 @@ class SqliteAwardRepository:
                         award_row_id, publication_number, winner_position,
                         related_notice_number, publication_date,
                         project_id, project_url, title, procurement_office, publication_type,
-                        overview_publication_date, winner_name, winner_address, procurement_office_address,
+                        overview_publication_date, winner_name, winner_address, winner_lat, winner_lon,
+                        winner_geocode_query, winner_geocode_status,
+                        procurement_office_address, procurement_office_lat, procurement_office_lon,
+                        procurement_office_geocode_query, procurement_office_geocode_status,
                         award_amount_chf, vat_percent,
                         offers_count, procurement_type, cpv_codes, source_url, created_at, updated_at
                     )
-                    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         award_row_id,
@@ -282,7 +364,15 @@ class SqliteAwardRepository:
                         entry.publication_date,
                         detail.winner_name,
                         detail.winner_address,
+                        None,
+                        None,
+                        None,
+                        None,
                         detail.procurement_office_address,
+                        None,
+                        None,
+                        None,
+                        None,
                         detail.award_amount_chf,
                         detail.vat_percent,
                         detail.offers_count,
@@ -308,7 +398,15 @@ class SqliteAwardRepository:
             "overview_publication_date": entry.publication_date,
             "winner_name": detail.winner_name,
             "winner_address": detail.winner_address,
+            "winner_lat": existing["winner_lat"],
+            "winner_lon": existing["winner_lon"],
+            "winner_geocode_query": existing["winner_geocode_query"],
+            "winner_geocode_status": existing["winner_geocode_status"],
             "procurement_office_address": detail.procurement_office_address,
+            "procurement_office_lat": existing["procurement_office_lat"],
+            "procurement_office_lon": existing["procurement_office_lon"],
+            "procurement_office_geocode_query": existing["procurement_office_geocode_query"],
+            "procurement_office_geocode_status": existing["procurement_office_geocode_status"],
             "award_amount_chf": detail.award_amount_chf,
             "vat_percent": detail.vat_percent,
             "offers_count": detail.offers_count,
@@ -337,7 +435,15 @@ class SqliteAwardRepository:
                     overview_publication_date = ?,
                     winner_name = ?,
                     winner_address = ?,
+                    winner_lat = ?,
+                    winner_lon = ?,
+                    winner_geocode_query = ?,
+                    winner_geocode_status = ?,
                     procurement_office_address = ?,
+                    procurement_office_lat = ?,
+                    procurement_office_lon = ?,
+                    procurement_office_geocode_query = ?,
+                    procurement_office_geocode_status = ?,
                     award_amount_chf = ?,
                     vat_percent = ?,
                     offers_count = ?,
@@ -360,7 +466,15 @@ class SqliteAwardRepository:
                     new_payload["overview_publication_date"],
                     new_payload["winner_name"],
                     new_payload["winner_address"],
+                    new_payload["winner_lat"],
+                    new_payload["winner_lon"],
+                    new_payload["winner_geocode_query"],
+                    new_payload["winner_geocode_status"],
                     new_payload["procurement_office_address"],
+                    new_payload["procurement_office_lat"],
+                    new_payload["procurement_office_lon"],
+                    new_payload["procurement_office_geocode_query"],
+                    new_payload["procurement_office_geocode_status"],
                     new_payload["award_amount_chf"],
                     new_payload["vat_percent"],
                     new_payload["offers_count"],
@@ -425,6 +539,32 @@ class SqliteAwardRepository:
                 """
             ).fetchall()
             return [{key: row[key] for key in row.keys()} for row in rows]
+
+    def update_award_geocoding(
+        self,
+        award_row_id: str,
+        *,
+        side: str,
+        query: str,
+        status: str,
+        lat: Optional[float],
+        lon: Optional[float],
+    ) -> None:
+        if side not in {"winner", "procurement_office"}:
+            raise ValueError(f"unsupported geocoding side: {side}")
+        with self._connection() as conn:
+            conn.execute(
+                f"""
+                UPDATE awards
+                SET {side}_geocode_query = ?,
+                    {side}_geocode_status = ?,
+                    {side}_lat = ?,
+                    {side}_lon = ?,
+                    updated_at = ?
+                WHERE award_row_id = ?
+                """,
+                (query, status, lat, lon, self._now_iso(), award_row_id),
+            )
 
     def latest_sync_run(self) -> Optional[SyncRunRecord]:
         with self._connection() as conn:

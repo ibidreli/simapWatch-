@@ -20,6 +20,7 @@ TIMEOUT_SECONDS = 20
 RESET_DB = False
 FULL_SYNC = False
 SKIP_CSV = False
+GEOCODE_MISSING = True
 
 
 def main() -> int:
@@ -37,6 +38,7 @@ def main() -> int:
             reset_db=RESET_DB,
             full_sync=FULL_SYNC,
             skip_csv=SKIP_CSV,
+            geocode_missing=GEOCODE_MISSING,
             progress_callback=default_progress_printer,
         )
     except SyncInterruptedError as interrupted:
@@ -54,6 +56,13 @@ def main() -> int:
         f"new={stats.new_count} updated={stats.updated_count} errors={stats.error_count}",
         flush=True,
     )
+    if result.geocoding_stats is not None:
+        print(
+            f"geocoding updated_rows={result.geocoding_stats.updated_rows} "
+            f"queried_addresses={result.geocoding_stats.queried_addresses} "
+            f"skipped_rows={result.geocoding_stats.skipped_rows}",
+            flush=True,
+        )
     if result.csv_row_count is None:
         print("csv skipped", flush=True)
         return 0

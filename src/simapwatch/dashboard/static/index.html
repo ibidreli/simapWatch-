@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>simapWatch Dashboard</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">simapWatch</p>
+        <h1>Beschaffungszuschläge, fokussiert auf Volumen, Akteure und Tempo.</h1>
+        <p class="lede">
+          Dieses MVP liest die aktuelle SQLite-Datenbasis und zeigt die wichtigsten Signale für einen schnellen Überblick.
+        </p>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-card">
+          <span class="meta-label">Stand</span>
+          <strong id="generated-at">lädt…</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="metrics" id="summary-cards"></section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <p class="panel-kicker">Geldfluss</p>
+        <h2>Auftraggeber zu Gewinner auf der Karte</h2>
+      </div>
+      <div id="flow-map" class="map-panel"></div>
+    </section>
+
+    <section class="grid two-up">
+      <article class="panel chart-panel">
+        <div class="panel-head">
+          <p class="panel-kicker">Zeitreihe</p>
+          <h2>Letzte 12 Monate</h2>
+        </div>
+        <div id="monthly-chart" class="bars"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <p class="panel-kicker">CPV</p>
+          <h2>Häufigste Hauptcodes</h2>
+        </div>
+        <div id="cpv-list" class="rank-list"></div>
+      </article>
+    </section>
+
+    <section class="grid two-up">
+      <article class="panel">
+        <div class="panel-head">
+          <p class="panel-kicker">Gewinner</p>
+          <h2>Top nach Volumen</h2>
+        </div>
+        <div id="winner-list" class="rank-list"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <p class="panel-kicker">Auftraggeber</p>
+          <h2>Top nach Volumen</h2>
+        </div>
+        <div id="buyer-list" class="rank-list"></div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <p class="panel-kicker">Neueste Zuschläge</p>
+        <h2>Letzte Einträge</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Publikation</th>
+              <th>Titel</th>
+              <th>Gewinner</th>
+              <th>Auftraggeber</th>
+              <th>Volumen</th>
+            </tr>
+          </thead>
+          <tbody id="recent-awards"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="/app.js"></script>
+</body>
+</html>

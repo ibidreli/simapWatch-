@@ -97,6 +97,15 @@ def main() -> int:
     if stats.status != "success":
         return 1
 
+    if result.geocoding_stats is not None:
+        print(
+            f"geocoding updated_rows={result.geocoding_stats.updated_rows} "
+            f"queried_addresses={result.geocoding_stats.queried_addresses} "
+            f"skipped_rows={result.geocoding_stats.skipped_rows}",
+            file=sys.stdout,
+            flush=True,
+        )
+
     if result.csv_row_count is None:
         print("csv skipped", file=sys.stdout, flush=True)
         return 0

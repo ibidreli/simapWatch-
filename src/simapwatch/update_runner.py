@@ -7,6 +7,7 @@ from typing import Callable, Optional
 
 from simapwatch.analysis import export_analysis_csv
 from simapwatch.fetcher import HttpHtmlFetcher
+from simapwatch.geocoding import GeoAdminGeocoder, GeocodingStats, geocode_missing_awards
 from simapwatch.repository import SqliteAwardRepository
 from simapwatch.services import SyncProgress, SyncService, SyncStats
 
@@ -20,6 +21,7 @@ DEFAULT_OVERVIEW_URL = (
 @dataclass(frozen=True)
 class UpdateResult:
     sync_stats: SyncStats
+    geocoding_stats: Optional[GeocodingStats]
     csv_row_count: Optional[int]
     db_path: str
     csv_path: str
@@ -46,6 +48,7 @@ def run_update(
     reset_db: bool = False,
     full_sync: bool = False,
     skip_csv: bool = False,
+    geocode_missing: bool = True,
     progress_callback: Optional[Callable[[SyncProgress], None]] = None,
 ) -> UpdateResult:
     repository = SqliteAwardRepository(db_path)
@@ -63,12 +66,18 @@ def run_update(
     )
     stats = service.run_once(overview_url)
 
+    geocoding_stats: Optional[GeocodingStats] = None
+    if stats.status == "success" and geocode_missing:
+        geocoder = GeoAdminGeocoder(timeout_seconds=timeout_seconds)
+        geocoding_stats = geocode_missing_awards(repository, geocoder)
+
     csv_row_count: Optional[int] = None
     if stats.status == "success" and not skip_csv:
         csv_row_count = export_analysis_csv(db_path, csv_path)
 
     return UpdateResult(
         sync_stats=stats,
+        geocoding_stats=geocoding_stats,
         csv_row_count=csv_row_count,
         db_path=db_path,
         csv_path=csv_path,

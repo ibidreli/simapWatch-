@@ -85,3 +85,26 @@ Konfiguration fuer das Skript steht direkt in [update_data.py](C:/Users/elias/De
 - `RESET_DB`
 - `FULL_SYNC`
 - `SKIP_CSV`
+- `GEOCODE_MISSING`
+
+Fehlende Koordinaten werden im Update-Lauf automatisch geocodiert.
+Bereits erfolgreich geocodierte oder bereits als `not_found` markierte Adressen werden nicht jedes Mal erneut angefragt.
+
+## Dashboard MVP
+
+Lokalen Dashboard-Server starten:
+```powershell
+.\.venv\Scripts\python.exe .\scripts\start_dashboard.py
+```
+
+Danach im Browser:
+```text
+http://127.0.0.1:8050
+```
+
+Konfiguration fuer den Dashboard-Start steht in [start_dashboard.py](C:/Users/elias/Desktop/FHNW/KIP/simapWatch-/scripts/start_dashboard.py):
+- `DB_PATH`
+- `HOST`
+- `PORT`
+
+Die Kartenansicht nutzt automatisch die geocodierten Auftraggeber- und Gewinnerkoordinaten aus der Datenbank.

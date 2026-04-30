@@ -14,6 +14,7 @@ if str(SRC) not in sys.path:
 from simapwatch.services import SyncInterruptedError, SyncStats
 from simapwatch.update_cli import main
 from simapwatch.update_runner import UpdateResult
+from simapwatch.geocoding import GeocodingStats
 
 
 class UpdateCliTests(unittest.TestCase):
@@ -26,6 +27,7 @@ class UpdateCliTests(unittest.TestCase):
                 error_count=0,
                 status="success",
             ),
+            geocoding_stats=GeocodingStats(updated_rows=2, queried_addresses=2, skipped_rows=4),
             csv_row_count=12,
             db_path="simapwatch.db",
             csv_path="analysis.csv",
@@ -43,6 +45,7 @@ class UpdateCliTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         run_update.assert_called_once()
         self.assertIn("sync status=success", output)
+        self.assertIn("geocoding updated_rows=2", output)
         self.assertIn("csv rows=12", output)
 
     def test_update_cli_skips_csv_when_runner_reports_none(self) -> None:
@@ -54,6 +57,7 @@ class UpdateCliTests(unittest.TestCase):
                 error_count=0,
                 status="success",
             ),
+            geocoding_stats=GeocodingStats(updated_rows=0, queried_addresses=0, skipped_rows=2),
             csv_row_count=None,
             db_path="simapwatch.db",
             csv_path="analysis.csv",
