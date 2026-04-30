@@ -10,7 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from simapwatch.dashboard.service import build_dashboard_payload
+from simapwatch.dashboard.service import build_dashboard_filter_options, build_dashboard_payload
 from simapwatch.domain.contracts import AwardDetail, OverviewEntry
 from simapwatch.repository import SqliteAwardRepository
 
@@ -39,7 +39,7 @@ class DashboardServiceTests(unittest.TestCase):
                     vat_percent=8.1,
                     offers_count=6,
                     winner_position=1,
-                    winner_address="Werkstrasse 10, 3000 Bern, Schweiz",
+                    winner_address="Werkstrasse 10, 3000 Bern, BE, CH",
                     procurement_office_address="Bundesgasse 1, 3000 Bern, BE, CH",
                     cpv_codes=["45000000", "45200000"],
                     procurement_type="Bauleistung",
@@ -64,7 +64,7 @@ class DashboardServiceTests(unittest.TestCase):
                     vat_percent=None,
                     offers_count=12,
                     winner_position=1,
-                    winner_address="Rue du Nord 26, 1180 Rolle, Schweiz",
+                    winner_address="Rue du Nord 26, 1180 Rolle, VD, CH",
                     procurement_office_address="Place du Chateau 1, 1014 Lausanne, VD, CH",
                     cpv_codes=["60100000"],
                     procurement_type="Dienstleistung",
@@ -89,7 +89,7 @@ class DashboardServiceTests(unittest.TestCase):
                     vat_percent=None,
                     offers_count=4,
                     winner_position=1,
-                    winner_address="Industriestrasse 5, 8005 Zurich, Schweiz",
+                    winner_address="Industriestrasse 5, 8005 Zurich, ZH, CH",
                     procurement_office_address="Rämistrasse 71, 8006 Zurich, ZH, CH",
                     cpv_codes=["33100000"],
                     procurement_type="Lieferung",
@@ -103,15 +103,15 @@ class DashboardServiceTests(unittest.TestCase):
 
         geocodes = {
             "PUB-100::1": {
-                "winner": (46.948, 7.447, "Werkstrasse 10, 3000 Bern, Schweiz"),
+                "winner": (46.948, 7.447, "Werkstrasse 10, 3000 Bern, BE, CH"),
                 "procurement_office": (46.947, 7.444, "Bundesgasse 1, 3000 Bern, BE, CH"),
             },
             "PUB-101::1": {
-                "winner": (46.458, 6.338, "Rue du Nord 26, 1180 Rolle, Schweiz"),
+                "winner": (46.458, 6.338, "Rue du Nord 26, 1180 Rolle, VD, CH"),
                 "procurement_office": (46.523, 6.632, "Place du Chateau 1, 1014 Lausanne, VD, CH"),
             },
             "PUB-102::1": {
-                "winner": (47.388, 8.515, "Industriestrasse 5, 8005 Zurich, Schweiz"),
+                "winner": (47.388, 8.515, "Industriestrasse 5, 8005 Zurich, ZH, CH"),
                 "procurement_office": (47.376, 8.548, "Rämistrasse 71, 8006 Zurich, ZH, CH"),
             },
         }
@@ -149,11 +149,33 @@ class DashboardServiceTests(unittest.TestCase):
             self.assertEqual(payload["top_winners"][0]["winner_name"], "Alpha Bau AG")
             self.assertEqual(payload["top_buyers"][0]["procurement_office"], "Kanton Bern")
             self.assertEqual(payload["cpv_breakdown"][0]["cpv_primary"], "45000000")
+            self.assertIn("Bauarbeiten", payload["cpv_breakdown"][0]["cpv_display"])
             self.assertEqual(payload["recent_awards"][0]["publication_number"], "PUB-100")
             self.assertEqual(payload["recent_awards"][1]["publication_number"], "PUB-101")
             self.assertEqual(len(payload["map_flows"]), 3)
             self.assertEqual(payload["map_flows"][0]["from"]["lat"], 46.947)
             self.assertEqual(payload["map_flows"][0]["to"]["lon"], 7.447)
+            self.assertEqual(len(payload["map_flows_aggregated"]), 3)
+            self.assertEqual(payload["winner_canton_breakdown"][0]["canton_code"], "BE")
+            self.assertGreater(payload["winner_canton_breakdown"][0]["awards_per_100k"], 0)
+            self.assertEqual(payload["buyer_canton_breakdown"][0]["canton_code"], "BE")
+            self.assertEqual(payload["canton_flow_breakdown"][0]["flow_label"], "BE -> BE")
+            self.assertGreaterEqual(len(payload["cpv_category_breakdown"]), 3)
+            self.assertGreaterEqual(len(payload["competition_by_procurement_type"]), 1)
+            self.assertEqual(len(payload["inter_canton_trend"]), len(payload["time_series"]))
+            insight_ids = {item["id"] for item in payload["insights"]}
+            self.assertNotIn("canton_data_coverage", insight_ids)
+
+            size_map = {item["bucket"]: item["award_count"] for item in payload["award_size_breakdown"]}
+            self.assertEqual(size_map["1m-5m"], 1)
+            self.assertEqual(size_map["500k-1m"], 1)
+
+            competition_map = {item["offers_bucket"]: item["award_count"] for item in payload["competition_breakdown"]}
+            self.assertEqual(competition_map["6-10"], 1)
+            self.assertEqual(competition_map["11+"], 1)
+
+            self.assertGreaterEqual(len(payload["insights"]), 5)
+            self.assertEqual(payload["insights"][0]["id"], "top_1_share")
 
     def test_build_dashboard_payload_generates_monthly_series(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -167,6 +189,49 @@ class DashboardServiceTests(unittest.TestCase):
             self.assertEqual(monthly[-1]["award_count"], 2)
             self.assertAlmostEqual(monthly[-1]["total_volume_chf"], 2_120_000.0)
             self.assertEqual(monthly[0]["month"], "2025-03")
+
+    def test_build_dashboard_payload_applies_filters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = pathlib.Path(tmp_dir) / "simapwatch.db"
+            self._seed_dashboard_data(db_path)
+
+            payload = build_dashboard_payload(
+                db_path,
+                today=date(2026, 3, 1),
+                filters={
+                    "from": "2026-02-01",
+                    "to": "2026-02-28",
+                    "buyer": "Kanton Bern",
+                    "cpv": "450",
+                    "min_amount": "1000000",
+                },
+            )
+
+            self.assertEqual(payload["summary"]["award_count"], 1)
+            self.assertEqual(payload["meta"]["source_award_count"], 3)
+            self.assertEqual(payload["meta"]["filtered_award_count"], 1)
+            self.assertEqual(payload["top_winners"][0]["winner_name"], "Alpha Bau AG")
+            self.assertEqual(payload["recent_awards"][0]["publication_number"], "PUB-100")
+            self.assertEqual(len(payload["map_flows"]), 1)
+            self.assertEqual(payload["winner_canton_breakdown"][0]["canton_code"], "BE")
+            self.assertEqual(payload["meta"]["time_bucket"], "day")
+            self.assertEqual(len(payload["time_series"]), 28)
+            self.assertEqual(payload["time_series"][0]["period_key"], "2026-02-01")
+            self.assertEqual(payload["time_series"][-1]["period_key"], "2026-02-28")
+
+    def test_build_dashboard_filter_options_returns_ranked_values(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = pathlib.Path(tmp_dir) / "simapwatch.db"
+            self._seed_dashboard_data(db_path)
+
+            options = build_dashboard_filter_options(db_path, limit=10)
+
+            self.assertEqual(options["buyers"][0]["name"], "Etat de Vaud")
+            self.assertEqual(options["buyers"][0]["count"], 1)
+            self.assertEqual(options["winners"][0]["count"], 1)
+            self.assertEqual(options["cpv_codes"][0]["name"], "33100000")
+            self.assertEqual(options["date_min"], "2025-11-15")
+            self.assertEqual(options["date_max"], "2026-02-28")
 
 
 if __name__ == "__main__":

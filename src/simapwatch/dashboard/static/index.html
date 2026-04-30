@@ -14,72 +14,270 @@
 </head>
 <body>
   <main class="shell">
-    <section class="hero">
-      <div class="hero-copy">
+    <section class="hero panel">
+      <div>
         <p class="eyebrow">simapWatch</p>
-        <h1>Beschaffungszuschläge, fokussiert auf Volumen, Akteure und Tempo.</h1>
+        <h1>Interaktives Beschaffungs-Dashboard</h1>
         <p class="lede">
-          Dieses MVP liest die aktuelle SQLite-Datenbasis und zeigt die wichtigsten Signale für einen schnellen Überblick.
+          Filtere nach Zeitraum, Akteuren und Volumen. Alle Charts, KPIs und die Karte aktualisieren sich synchron.
         </p>
       </div>
       <div class="hero-meta">
         <div class="meta-card">
-          <span class="meta-label">Stand</span>
-          <strong id="generated-at">lädt…</strong>
+          <span class="meta-label">Generiert</span>
+          <strong id="generated-at">lädt...</strong>
+        </div>
+        <div class="meta-card">
+          <span class="meta-label">Datensätze</span>
+          <strong id="result-count">0</strong>
+          <small id="result-subline">von 0 gesamt</small>
         </div>
       </div>
+    </section>
+
+    <section class="panel filters-panel">
+      <div class="panel-head compact">
+        <div>
+          <p class="panel-kicker">Filter</p>
+          <h2>Analyse eingrenzen</h2>
+        </div>
+      </div>
+
+      <form id="filter-form" class="filters-grid" autocomplete="off">
+        <label>
+          Von
+          <input id="filter-from" name="from" type="date">
+        </label>
+        <label>
+          Bis
+          <input id="filter-to" name="to" type="date">
+        </label>
+        <label>
+          Auftraggeber
+          <input id="filter-buyer" name="buyer" list="buyers-list" placeholder="z.B. Kanton Bern">
+        </label>
+        <label>
+          Gewinner
+          <input id="filter-winner" name="winner" list="winners-list" placeholder="z.B. AG oder SA">
+        </label>
+        <label>
+          CPV (Prefix)
+          <input id="filter-cpv" name="cpv" list="cpv-codes-list" placeholder="z.B. 4500">
+        </label>
+        <label>
+          Beschaffungstyp
+          <select id="filter-procurement-type" name="procurement_type">
+            <option value="">Alle</option>
+          </select>
+        </label>
+        <label>
+          Min CHF
+          <input id="filter-min-amount" name="min_amount" type="number" min="0" step="1000" placeholder="0">
+        </label>
+        <label>
+          Max CHF
+          <input id="filter-max-amount" name="max_amount" type="number" min="0" step="1000" placeholder="offen">
+        </label>
+        <label class="full-span">
+          Volltext
+          <input id="filter-text" name="text" placeholder="Titel, Publikationsnummer, Winner, Buyer...">
+        </label>
+
+        <div class="quick-range full-span" role="group" aria-label="Zeitraum Schnellwahl">
+          <button type="button" class="chip" data-days="30">30 Tage</button>
+          <button type="button" class="chip" data-days="90">90 Tage</button>
+          <button type="button" class="chip" data-days="180">180 Tage</button>
+          <button type="button" class="chip" data-days="365">365 Tage</button>
+        </div>
+
+        <div class="filter-actions full-span">
+          <button type="submit" class="btn primary" id="apply-filters">Filter anwenden</button>
+          <button type="button" class="btn" id="reset-filters">Zurücksetzen</button>
+          <span id="loading-indicator" aria-live="polite"></span>
+        </div>
+      </form>
+
+      <datalist id="buyers-list"></datalist>
+      <datalist id="winners-list"></datalist>
+      <datalist id="cpv-codes-list"></datalist>
     </section>
 
     <section class="metrics" id="summary-cards"></section>
 
+    <section class="panel insights-panel">
+      <div class="panel-head compact">
+        <p class="panel-kicker">Insights</p>
+        <h2>Nicht offensichtliche Signale</h2>
+      </div>
+      <div class="insights-grid" id="insights-grid"></div>
+    </section>
+
+    <section class="grid two-up">
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Trend</p>
+          <h2>Volumen und Anzahl im Zeitraum</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="monthly-volume-chart"></canvas>
+        </div>
+      </article>
+
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Top CPV</p>
+          <h2>Code-Verteilung</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="cpv-chart"></canvas>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid two-up">
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Top Gewinner</p>
+          <h2>Nach Volumen</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="winners-chart"></canvas>
+        </div>
+      </article>
+
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Beschaffungstyp</p>
+          <h2>Häufigkeit</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="procurement-type-chart"></canvas>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid two-up">
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Gewinner-Kanton</p>
+          <h2>Zuschläge pro Kanton</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="winner-canton-chart"></canvas>
+        </div>
+      </article>
+
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Buyer-Kanton</p>
+          <h2>Volumen pro Kanton</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="buyer-canton-chart"></canvas>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid two-up">
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Auftragsgrößen</p>
+          <h2>Verteilung nach Betrag</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="award-size-chart"></canvas>
+        </div>
+      </article>
+
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Wettbewerb</p>
+          <h2>Angebotsintensität</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="competition-chart"></canvas>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid two-up">
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Kanton-Flüsse</p>
+          <h2>Top Auftraggeber -> Gewinner-Kanton</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="canton-flow-chart"></canvas>
+        </div>
+      </article>
+
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Konzentration</p>
+          <h2>Pareto der Gewinner</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="concentration-chart"></canvas>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid two-up">
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Wettbewerbsrisiko</p>
+          <h2>Single-Bid je Beschaffungstyp</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="competition-type-chart"></canvas>
+        </div>
+      </article>
+
+      <article class="panel chart-card">
+        <div class="panel-head compact">
+          <p class="panel-kicker">Interkantonalität</p>
+          <h2>Quote im Zeitverlauf</h2>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="inter-canton-trend-chart"></canvas>
+        </div>
+      </article>
+    </section>
+
     <section class="panel">
-      <div class="panel-head">
-        <p class="panel-kicker">Geldfluss</p>
-        <h2>Auftraggeber zu Gewinner auf der Karte</h2>
+      <div class="panel-head compact">
+        <p class="panel-kicker">Gewinner-Profile</p>
+        <h2>Marktposition und Spezialisierung</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Gewinner</th>
+              <th>Kanton</th>
+              <th>Zuschläge</th>
+              <th>Avg Angebote</th>
+              <th>Haupt-CPV</th>
+              <th>Volumenanteil</th>
+            </tr>
+          </thead>
+          <tbody id="winner-profiles"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head compact">
+        <p class="panel-kicker">Geo-Fluss</p>
+        <h2>Auftraggeber zu Gewinner</h2>
       </div>
       <div id="flow-map" class="map-panel"></div>
     </section>
 
-    <section class="grid two-up">
-      <article class="panel chart-panel">
-        <div class="panel-head">
-          <p class="panel-kicker">Zeitreihe</p>
-          <h2>Letzte 12 Monate</h2>
-        </div>
-        <div id="monthly-chart" class="bars"></div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-head">
-          <p class="panel-kicker">CPV</p>
-          <h2>Häufigste Hauptcodes</h2>
-        </div>
-        <div id="cpv-list" class="rank-list"></div>
-      </article>
-    </section>
-
-    <section class="grid two-up">
-      <article class="panel">
-        <div class="panel-head">
-          <p class="panel-kicker">Gewinner</p>
-          <h2>Top nach Volumen</h2>
-        </div>
-        <div id="winner-list" class="rank-list"></div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-head">
-          <p class="panel-kicker">Auftraggeber</p>
-          <h2>Top nach Volumen</h2>
-        </div>
-        <div id="buyer-list" class="rank-list"></div>
-      </article>
-    </section>
-
     <section class="panel">
-      <div class="panel-head">
+      <div class="panel-head compact">
         <p class="panel-kicker">Neueste Zuschläge</p>
-        <h2>Letzte Einträge</h2>
+        <h2>Aktuelle Einträge im Filter</h2>
       </div>
       <div class="table-wrap">
         <table>
@@ -98,11 +296,13 @@
       </div>
     </section>
   </main>
+
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
-  <script src="/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="/dashboard.js"></script>
 </body>
 </html>

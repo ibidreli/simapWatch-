@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 import unittest
+from urllib.parse import urlencode
 from urllib.request import urlopen
 
 
@@ -83,6 +84,12 @@ class DashboardServerTests(unittest.TestCase):
             try:
                 with urlopen(f"http://{host}:{port}/api/dashboard") as response:
                     payload = json.loads(response.read().decode("utf-8"))
+                with urlopen(
+                    f"http://{host}:{port}/api/dashboard?{urlencode({'buyer': 'Kanton Bern'})}"
+                ) as response:
+                    filtered_payload = json.loads(response.read().decode("utf-8"))
+                with urlopen(f"http://{host}:{port}/api/dashboard/options") as response:
+                    options_payload = json.loads(response.read().decode("utf-8"))
                 with urlopen(f"http://{host}:{port}/") as response:
                     html = response.read().decode("utf-8")
             finally:
@@ -91,6 +98,9 @@ class DashboardServerTests(unittest.TestCase):
                 thread.join(timeout=2)
 
             self.assertEqual(payload["summary"]["award_count"], 1)
+            self.assertEqual(filtered_payload["summary"]["award_count"], 1)
+            self.assertEqual(options_payload["buyers"][0]["name"], "Kanton Bern")
+            self.assertIn("dashboard.js", html)
             self.assertIn("simapWatch Dashboard", html)
 
 

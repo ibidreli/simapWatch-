@@ -1,5 +1,5 @@
-"""Dashboard service and server exports."""
+﻿"""Dashboard service and server exports."""
 
-from .service import build_dashboard_payload
+from .service import DashboardFilters, build_dashboard_filter_options, build_dashboard_payload
 
-__all__ = ["build_dashboard_payload"]
+__all__ = ["DashboardFilters", "build_dashboard_filter_options", "build_dashboard_payload"]
