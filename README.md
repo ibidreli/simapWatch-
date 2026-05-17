@@ -127,6 +127,85 @@ Die Analyse-CSV kann auch separat erzeugt werden, falls die Datenbank bereits vo
 
 Das ist nuetzlich, wenn du nur den Export erneuern willst, ohne einen neuen Sync auszufuehren.
 
+## Automatische Updates Unter Windows
+
+Unter Windows kannst du den regelmaessigen Update-Lauf mit der Aufgabenplanung
+("Task Scheduler") automatisieren. Empfohlen ist das Skript
+[scripts/update_data.py](scripts/update_data.py), weil es Sync, Geocoding und CSV-Export
+in einem Lauf kombiniert.
+
+### Variante 1: Aufgabenplanung Per UI
+
+1. Windows-Suche oeffnen und `Aufgabenplanung` starten.
+2. Rechts `Einfache Aufgabe erstellen...` waehlen.
+3. Name setzen, z. B. `simapWatch Update`.
+4. Trigger waehlen, z. B. `Taeglich`.
+5. Als Aktion `Programm starten` waehlen.
+6. Bei `Programm/Skript` eintragen:
+   ```text
+   C:\Users\elias\Desktop\FHNW\KIP\simapWatch-\.venv\Scripts\python.exe
+   ```
+7. Bei `Argumente hinzufuegen` eintragen:
+   ```text
+   scripts\update_data.py
+   ```
+8. Bei `Starten in` unbedingt den Projektordner eintragen:
+   ```text
+   C:\Users\elias\Desktop\FHNW\KIP\simapWatch-
+   ```
+9. Aufgabe speichern.
+
+Wichtig ist das Feld `Starten in`. Ohne dieses Arbeitsverzeichnis findet das Skript
+relative Pfade wie `src\simapwatch.db` oder `src\analysis.csv` eventuell nicht korrekt.
+
+### Variante 2: Aufgabenplanung Per PowerShell
+
+Alternativ kannst du die Aufgabe direkt per PowerShell erstellen:
+
+```powershell
+$project = "C:\Users\elias\Desktop\FHNW\KIP\simapWatch-"
+$python = "$project\.venv\Scripts\python.exe"
+$action = New-ScheduledTaskAction `
+  -Execute $python `
+  -Argument "scripts\update_data.py" `
+  -WorkingDirectory $project
+$trigger = New-ScheduledTaskTrigger -Daily -At 06:00
+Register-ScheduledTask `
+  -TaskName "simapWatch Update" `
+  -Action $action `
+  -Trigger $trigger `
+  -Description "Laedt neue SIMAP-Zuschlaege, geocodiert fehlende Orte und aktualisiert analysis.csv"
+```
+
+Die Uhrzeit kannst du bei `-At 06:00` anpassen.
+
+### Optional: Log-Datei Schreiben
+
+Wenn du spaeter nachvollziehen willst, ob der automatische Lauf funktioniert hat,
+kannst du statt `scripts\update_data.py` auch PowerShell als Aktion verwenden und die
+Ausgabe in eine Log-Datei schreiben.
+
+`Programm/Skript`:
+
+```text
+powershell.exe
+```
+
+`Argumente hinzufuegen`:
+
+```text
+-NoProfile -ExecutionPolicy Bypass -Command ".\.venv\Scripts\python.exe .\scripts\update_data.py *> .\logs\update.log"
+```
+
+Vorher den Log-Ordner einmal erstellen:
+
+```powershell
+New-Item -ItemType Directory -Force -Path .\logs
+```
+
+Fuer den normalen Betrieb sollte `RESET_DB` in [scripts/update_data.py](scripts/update_data.py)
+auf `False` bleiben. Sonst wird die Datenbank bei jedem geplanten Lauf neu aufgebaut.
+
 ## Dashboard Starten
 
 Das Dashboard zeigt die Daten lokal im Browser und nutzt die geocodierten Koordinaten aus der Datenbank.
